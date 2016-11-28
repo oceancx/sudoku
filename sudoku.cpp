@@ -13,23 +13,24 @@ public:
 			mSudokuMat[row][col] = sudokuArray[i];
 		}
 		initMatSets();
+		
 	};
 
-	~Sudoku()
+	~Sudoku()  
 	{
 
 	};
 
 	void initMatSets()
 	{
-		memset(mMatSets,0,sizeof(mMatSets));
+		memset(mMatSets, 0, sizeof(mMatSets));
 		for (int i = 0; i < 9; i++)
 		{
 			for (int j = 0; j < 9; j++)
 			{
 				if (mSudokuMat[i][j] == 0)
 				{
-					mMatSets[i][j] = (1<<10)-1;
+					mMatSets[i][j] = (1 << 10) - 2;
 				}
 				else
 				{
@@ -44,21 +45,63 @@ public:
 		return mMatSets[row][col];
 	};
 
-//根据输入 求解这个数独
-		/*
-		求解算法：
-		一遍又一遍的遍历整个9x9格子，
-		1. 根据横纵行，以及3x3格子块的情况，确定当前格子可选数字 如1~9等
-			如果当前格子可以确定，那就用当前格子的数字，去剔除掉能影响到的格子
-			如果不可以确定，那么就把候选的数字集合保留起来
-		2. 遍历一遍后，再接着遍历，返回1
-		*/
-		//初始化 让所有为0的格子的候选集合都为1~9
-		
-		//std::cout << "what the fuck" << getCandidateSet(3, 1)[0] << std::endl;
-	bool solve() 
+	//根据输入 求解这个数独
+	/*
+	求解算法：
+	一遍又一遍的遍历整个9x9格子，
+	1. 根据横纵行，以及3x3格子块的情况，确定当前格子可选数字 如1~9等
+	如果当前格子可以确定，那就用当前格子的数字，去剔除掉能影响到的格子
+	如果不可以确定，那么就把候选的数字集合保留起来
+	2. 遍历一遍后，再接着遍历，返回1
+	*/
+	//初始化 让所有为0的格子的候选集合都为1~9
+
+	//std::cout << "what the fuck" << getCandidateSet(3, 1)[0] << std::endl;
+
+
+	void swapMat9x9(bool isBackup,int backup[9][9],int origin[9][9])
 	{
-		for(int x=0;x<10000;x++)
+		for (int i = 0; i < 81; i++)
+		{
+			int row = i / 9, col = i % 9;
+			if (isBackup) {
+				backup[row][col] = origin[row][col];
+			}
+			else {
+				origin[row][col] = backup[row][col];
+			}
+
+		}
+	}
+
+
+	void backupSudokuMat()
+	{
+		if (changeElement)return;
+		swapMat9x9(true,mBackupSudokuSets, mSudokuMat);
+	}
+	void restoreSudokuMat()
+	{
+		swapMat9x9(false, mBackupSudokuSets, mSudokuMat);
+	}
+
+
+	void backupAllCandidate()
+	{
+		if (changeElement)return;
+		swapMat9x9(true, mBackupMatSets, mMatSets);
+	}
+	void restoreAllCandidate()
+	{
+		swapMat9x9(false, mBackupMatSets,mMatSets);
+		
+	}
+
+	bool changeElement = false;
+	bool solve()
+	{
+		
+		for (int x = 0; x < 10000; x++)
 		{
 			bool changed = false;
 			for (int i = 0; i < 9; i++)
@@ -73,103 +116,228 @@ public:
 						int& candidateSet = getCandidateSet(i, j);
 						if (candidateSet == 0)
 						{
-							printf("candidateSet[0] == 0 这里出错了 row:%d col:%d！！！！！\n",i,j);
+							printf("candidateSet==0这里出错了 row:%d col:%d！！！！！\n", i, j);
 							printSelf();
 							return false;
 						}
-						int res = updateCandidateSet(i,j);
+						int res = updateCandidateSet(i, j);
 						if (res != -1)
 						{
 							changed = true;
 							val = res;
-							candidateSet=0;
-							printf("val值更新成功！ %d row:%d col:%d\n",val,i,j);
+							candidateSet = 0;
+							printf("val值更新成功！ %d row:%d col:%d\n", val, i, j);
 							printSelf();
 						}
+						else if (candidateSet == 0) 
+						{
+							return false;
+						}
+						
 					}
 				}
 			}
-			printf("扫描第%d次！！！\n",x);
-			int cnt = 0;
-			long posibilities=1;
-			for(int i=0;i<9;i++)
-			{
-				for(int j=0;j<9;j++)
-				{	
-					int& set = getCandidateSet(i,j);
-					int cnt = getSetCnt(set);
-					if(cnt!=0)
-					{
-						posibilities*=cnt;
-						printf("候选%x个元素 %d,%d:",cnt,i,j);
-						printSet(set);
-						printf("\n");
-					}
-				}
-			}
-			printf("剩余可能的组合数:%ld\n", posibilities);
-			// if( !changed||posibilities==1){
-			// 	printSelf();
-			// 	return false;
-			// }
+
+			printf("扫描第%d次！！！\n", x);
+			printPosibilities();
 			printSelf();
+
 			if (isSolved())
 			{
 				return true;
 			}
 
-
-/*如果集合没有变化，那么就从canSet里面的元素，进行枚举，直到能推出整个*/
-			if(!changed)
+			if (!changed)
 			{
-
-				for(int i=0;i<9;i++)
+				// printPosibilities();
+				//尝试优化
+				for (int i = 0; i < 9; i++)
 				{
-					for(int j=0;j<9;j++)
+					int srow = i / 3 * 3;
+					int scol = i % 3 * 3;
+					int oneCnt = 0;
+					int filter[10] = {};
+					int filterAttach[10] = {};
+					for (int j = 0; j < 3; j++)
 					{
-						int& canSet = getCandidateSet(i,j);
-						if(canSet != 0 )
-						{	
-							for(int k=1;k<=9;k++){
-								if( (canSet>>k) &1)
-								{	
-									canSet &=~(1<<k);
-									if(solve())
-									{	
-										printf("更换元素 搜索成功\n");
-										return true;
-									}
-									else 
-									{
+						for (int k = 0; k < 3; k++)
+						{
+							int erow = srow + j;
+							int ecol = scol + k;
+							int& cset = getCandidateSet(erow, ecol);
+							for (int p = 1; p <= 9; p++)
+							{
+								if ((cset >> p) & 1)
+								{
+									filter[p]++;
+									filterAttach[p] = erow * 9 + ecol;
+								}
+							}
+						}
+					}
 
-										printf("更换元素 搜索失败！！！！！\n");
-										canSet |=(1<<k);
-									}
-								}	
+					for (int q = 1; q <= 9; q++)
+					{
+						if (filter[q] == 1)
+						{
+							int erow = filterAttach[q] / 9;
+							int ecol = filterAttach[q] % 9;
+							mMatSets[erow][ecol] = 0;
+							mSudokuMat[erow][ecol] = q;
+							changed = true;
+						}
+					}
+
+				}
+			}
+			
+
+			/*如果集合没有变化，那么就从canSet里面的元素，进行枚举，直到能推出整个*/
+			if (!changed)
+			{
+				int minIndex = -1;
+				int minCanCnt = 100;
+				for (int i = 0; i < 9; i++)
+				{
+					for (int j = 0; j < 9; j++)
+					{
+						int& canSet = getCandidateSet(i, j);
+						if (canSet != 0)
+						{
+							int setCnt = getSetCnt(canSet);
+							if (setCnt < minCanCnt)
+							{
+								minCanCnt = setCnt;
+								minIndex = i * 9 + j;
 							}
 						}
 					}
 				}
-				printSelf();
+
+				if (minIndex != -1)
+				{
+					backupAllCandidate();
+					backupSudokuMat();
+					changeElement = true;
+					
+					int& minCanset = getCandidateSet(minIndex / 9, minIndex % 9);
+					for (int k = 1; k <= 9; k++) {
+						if ((minCanset >> k) & 1)
+						{
+							minCanset &= ~(1 << k);
+							if (solve())
+							{
+								printf("更换元素 搜索成功\n");
+								return true;
+							}
+							else
+							{
+								printf("更换元素 搜索失败！！！！！\n");
+								restoreAllCandidate();
+								restoreSudokuMat();			
+								//canSet |= (1 << k);
+							}
+						}
+					}
+					changeElement = false;
+					return false;
+				}
 			}
 		}
 		return false;
 	}
 
+	void printPosibilities()
+	{
+		int cnt = 0;
+		long long posibilities = 1;
+		int undeterminedElements = 0;
+
+		for (int i = 0; i < 9; i++)
+		{
+			int srow = i / 3 * 3;
+			int scol = i % 3 * 3;
+			printf("i:%d\n", i+1);
+			for (int j = 0; j < 3; j++)
+			{
+				for (int k = 0; k < 3; k++)
+				{
+					int erow = srow + j;
+					int ecol = scol + k;
+					
+					int& set = getCandidateSet(erow, ecol);
+					int cnt = getSetCnt(set);
+					if (cnt != 0)
+					{
+						undeterminedElements++;
+						posibilities *= cnt;
+						printf("(%d,%d,n=%d):",  erow+1,ecol+1 , cnt);
+						printSet(set);
+						printf("\t");
+					}
+					
+				}
+				printf("\n");
+			}
+		}
+		
+		printf("剩余可能的组合数:%lld  未确定元素数：%d\n", posibilities,undeterminedElements);
+
+	}
+
+	//找出集合中跟此集合相同的集合，然后划掉其他集合中的元素
+	//int commonSet = 0;
+	//for (int p = 0; p < 3; p++)
+	//{
+	//	for (int q = 0; q < 3; q++)
+	//	{
+	//		int& pqSet = getCandidateSet(smallSetStartRow + p, smallSetStartCol + q);
+	//		if (pqSet != 0 && candidateSet != 0 && candidateSet == pqSet)
+	//		{
+	//			commonSet |= 1 << (p * 3 + q);
+	//		}
+	//	}
+	//}
+	//if (commonSet != 0 && getSetCnt(commonSet) == getSetCnt(candidateSet))
+	//{
+	//	/*对其他集合中的元素进行更新*/
+	//	for (int p = 0; p < 3; p++)
+	//	{
+	//		for (int q = 0; q < 3; q++)
+	//		{
+	//			int pqIndex = p * 3 + q;
+	//			if (!(commonSet >> pqIndex & 1))
+	//			{
+	//				int& pqSet = getCandidateSet(smallSetStartRow + p, smallSetStartCol + q);
+	//				if (pqSet != 0) {
+	//					for (int x = 1; x <= 9; x++)
+	//					{
+	//						if ((candidateSet >> x) & 1)
+	//						{
+	//							pqSet &= ~(1 << x);
+	//						}
+	//					}
+	//				}
+	//			}
+	//		}
+	//	}
+	//}
+
 	void printSet(int set)
 	{
 		int count = 0;
-		for(int i=1;i<=9;i++)
+		for (int i = 1; i <= 9; i++)
 		{
-			if( (set>>i) & 1 )
+			if ((set >> i) & 1)
 			{
-				if(count==0)
+				if (count == 0)
 				{
-					printf("{%d",i);
+					printf("{%d", i);
 					count++;
-				}else
+				}
+				else
 				{
-					printf(",%d",i);
+					printf(",%d", i);
 				}
 			}
 		}
@@ -180,9 +348,9 @@ public:
 	int getSetCnt(int set)
 	{
 		int cnt = 0;
-		for(int i=1;i<=9;i++)
+		for (int i = 1; i <= 9; i++)
 		{
-			if((set>>i) & 1)
+			if ((set >> i) & 1)
 			{
 				cnt++;
 			}
@@ -199,15 +367,15 @@ public:
 		{
 			if (mSudokuMat[row][i] != 0)
 			{
-				candidateSet &= ~(1<<mSudokuMat[row][i]);
+				candidateSet &= ~(1 << mSudokuMat[row][i]);
 			}
 
 			if (mSudokuMat[i][col] != 0)
 			{
-				candidateSet &= ~(1<<mSudokuMat[i][col]);
+				candidateSet &= ~(1 << mSudokuMat[i][col]);
 			}
 		}
-		
+
 		int smallSetStartRow = row / 3 * 3;
 		int smallSetStartCol = col / 3 * 3;
 		for (int i = 0; i < 3; i++)
@@ -217,21 +385,21 @@ public:
 				int& innerVal = mSudokuMat[smallSetStartRow + i][smallSetStartCol + j];
 				if (innerVal != 0)
 				{
-					candidateSet &= ~(1<<innerVal);
+					candidateSet &= ~(1 << innerVal);
 				}
 			}
 		}
 
 		if (candidateSet != 0)
 		{
-			int cnt = 0 ;
+			int cnt = 0;
 			int candidateNum = -1;
-			for(int i=1;i<=9;i++)
+			for (int i = 1; i <= 9; i++)
 			{
-				if( (candidateSet >> i) & 1)
+				if ((candidateSet >> i) & 1)
 				{
 					cnt++;
-					candidateNum=i;
+					candidateNum = i;
 				}
 			}
 
@@ -268,7 +436,7 @@ public:
 			{
 				colSet[i] = mSudokuMat[i][col];
 			}
-			if (!isSetOk(colSet) ){
+			if (!isSetOk(colSet)) {
 				return false;
 			}
 		}
@@ -278,16 +446,16 @@ public:
 		*/
 		for (int iset = 0; iset< 9; iset++)
 		{
-			int innerSet[9],outRow,outCol;
-			
+			int innerSet[9], outRow, outCol;
+
 			outRow = iset / 3 * 3;
 			outCol = iset % 3 * 3;
-			
+
 			for (int i = 0; i < 3; i++)
 			{
 				for (int j = 0; j < 3; j++)
 				{
-					innerSet[i * 3 + j] = mSudokuMat[outRow + i][outCol +j];
+					innerSet[i * 3 + j] = mSudokuMat[outRow + i][outCol + j];
 				}
 			}
 			//printf("输出InnerSet i:%d\n", iset);
@@ -301,12 +469,12 @@ public:
 		return true;
 	}
 
-	
-	
-	bool isSetOk(int (&set)[9])
+
+
+	bool isSetOk(int(&set)[9])
 	{
-		int emptySet[10] = 
-		{ 
+		int emptySet[10] =
+		{
 			0,0,0,
 			0,0,0,
 			0,0,0,0
@@ -324,14 +492,14 @@ public:
 		return true;
 	}
 
-	void print(int dimension ,int* mat)
+	void print(int dimension, int* mat)
 	{
 		for (int i = 0; i < dimension; i++) {
 			for (int j = 0; j < dimension; j++) {
 				printf("%d ", mat[i*dimension + j]);
-				if((j+1)%3==0)printf(" ");
+				if ((j + 1) % 3 == 0)printf(" ");
 			}
-			if((i+1)%3==0)printf("\n");
+			if ((i + 1) % 3 == 0)printf("\n");
 			printf("\n");
 		}
 	}
@@ -343,12 +511,55 @@ public:
 	}
 private:
 	int mSudokuMat[9][9];
-	int mMatSets[9][9];	
+	int mMatSets[9][9];
+	int mBackupSudokuSets[9][9];
+	int mBackupMatSets[9][9];
 };
 
 
-int InputSudoku[]= {
+int InputSudoku[] = {
 
+
+	//0,0,0, 0,0,0, 0,0,0,
+
+	3,0,2, 0,0,4, 0,0,8,
+	7,0,0, 0,1,0, 0,0,9,
+	0,0,0, 0,2,0, 7,0,6,
+
+	0,7,0, 1,3,0, 0,0,4,
+	0,3,0, 0,9,8, 0,0,0,
+	1,0,0, 0,0,0, 0,0,0,
+
+	0,0,0, 3,4,9, 0,8,0,
+	0,0,3, 0,0,0, 6,0,0,
+	0,0,0, 0,7,6, 0,9,0,
+
+	/*0,0,0, 8,6,5, 9,0,0,
+	7,0,0, 0,0,0, 6,0,1,
+	0,2,6, 0,0,0, 0,0,0,
+
+	9,0,0, 0,7,0, 0,0,5,
+	0,6,0, 3,0,0, 2,0,0,
+	0,0,0, 0,0,4, 0,0,0,
+
+	6,0,0, 9,1,3, 0,0,0,
+	0,0,0, 0,0,0, 0,1,6,
+	3,8,0, 0,0,0, 4,0,0,*/
+
+	
+
+	/*0,9,0, 0,2,8, 7,0,0,
+	7,0,0, 0,0,0, 0,0,3,
+	0,0,2, 0,3,0, 0,0,0,
+	
+	7,4,0, 0,0,0, 0,6,0,
+	0,0,0, 0,9,0, 8,0,0,
+	0,0,3, 4,0,0, 0,0,0,
+
+	1,0,0, 0,0,0, 0,9,5,
+	0,6,0, 0,1,9, 3,8,0,
+	9,0,0, 3,7,0, 0,0,0,
+*/
 
 	// 0,0,0,0,5,4,9,0,0,
 	// 1,6,0,0,0,0,0,0,0,
@@ -360,71 +571,70 @@ int InputSudoku[]= {
 	// 0,0,0,0,7,0,0,0,0,
 	// 3,0,0,0,0,0,0,7,1
 
-// 8,7,3,2,5,4,9,1,6,
-// 1,6,9,8,3,0,5,4,7,
-// 2,5,4,9,1,6,3,8,0,
+	// 8,7,3,2,5,4,9,1,6,
+	// 1,6,9,8,3,0,5,4,7,
+	// 2,5,4,9,1,6,3,8,0,
 
-// 9,4,8,5,2,3,7,6,0,
-// 6,2,0,0,4,7,1,0,8,
-// 7,3,5,6,8,1,4,9,2,
+	// 9,4,8,5,2,3,7,6,0,
+	// 6,2,0,0,4,7,1,0,8,
+	// 7,3,5,6,8,1,4,9,2,
 
-// 0,1,7,3,9,2,8,5,4,
-// 4,8,2,1,7,5,6,3,9,
-// 3,9,0,4,6,8,2,7,1
-	
-	// 3,0,2, 0,0,8 ,0,0,7,
-	// 0,0,0, 0,0,0 ,0,0,0,
-	// 4,0,0, 5,9,0 ,0,6,0,
-	// 0,0,4, 0,0,9 ,0,0,3,
-	// 6,0,8, 0,4,0 ,0,2,0,
-	// 2,0,1, 6,7,5 ,0,9,0,
-	// 0,0,0, 0,0,0 ,0,0,0,
-	// 5,7,0, 1,0,3 ,0,0,4,
-	// 0,0,0, 8,2,7 ,0,0,0
-	
-	// 0,8,7, 0,0,5, 0,3,0,
-	// 0,0,0, 7,0,0, 0,2,0,
-	// 0,0,0, 0,4,0, 5,9,0,
-	// 0,0,0, 0,0,3, 0,4,0,
-	// 6,0,0, 0,9,0, 0,0,0,
-	// 0,3,0, 0,5,0, 0,0,0,
-	// 0,5,1, 9,0,0, 0,0,0,
-	// 4,0,0, 0,0,1, 8,0,0,
-	// 0,0,6, 0,3,0, 1,0,0,
+	// 0,1,7,3,9,2,8,5,4,
+	// 4,8,2,1,7,5,6,3,9,
+	// 3,9,0,4,6,8,2,7,1
 
+	/* 3,0,2, 0,0,8 ,0,0,7,
+	 0,0,0, 0,0,0 ,0,0,0,
+	 4,0,0, 5,9,0 ,0,6,0,
+	 0,0,4, 0,0,9 ,0,0,3,
+	 6,0,8, 0,4,0 ,0,2,0,
+	 2,0,1, 6,7,5 ,0,9,0,
+	 0,0,0, 0,0,0 ,0,0,0,
+	 5,7,0, 1,0,3 ,0,0,4,
+	 0,0,0, 8,2,7 ,0,0,0*/
 
-
-	// 0,0,0 ,0,2,4 ,0,6,9,
-	// 9,0,0 ,1,0,0 ,7,8,0,
-	// 8,5,0 ,0,9,0 ,0,3,0,
-	// 0,1,0 ,0,0,3 ,0,9,6,
-	// 5,2,0 ,0,8,0 ,0,0,0,
-	// 0,0,7 ,9,0,2 ,0,0,4,
-	// 0,8,1 ,0,4,0 ,0,0,5,
-	// 3,6,4 ,0,0,1 ,0,0,8,
-	// 0,0,5 ,7,0,8 ,1,0,0
+	/* 0,8,7, 0,0,5, 0,3,0,
+	 0,0,0, 7,0,0, 0,2,0,
+	 0,0,0, 0,4,0, 5,9,0,
+	 0,0,0, 0,0,3, 0,4,0,
+	 6,0,0, 0,9,0, 0,0,0,
+	 0,3,0, 0,5,0, 0,0,0,
+	 0,5,1, 9,0,0, 0,0,0,
+	 4,0,0, 0,0,1, 8,0,0,
+	 0,0,6, 0,3,0, 1,0,0,*/
 
 
-	// 	3,9,6,5,8,4,1,7,2,
-	// 2,7,5,1,3,9,6,8,4,
-	// 1,8,4,7,2,6,5,3,9,
-	// 6,0,8,9,4,5,0,1,7,
-	// 9,0,1,0,6,7,8,0,5,
-	// 5,0,7,8,1,0,9,0,6,
-	// 7,1,0,6,9,8,4,0,3,
-	// 4,5,9,0,7,1,0,6,8,
-	// 8,6,0,4,5,0,7,9,1
 
-	 0,7,2,9,0,0,0,1,0,
-	 0,0,0,0,3,0,0,9,8,
-	 8,0,5,4,7,0,0,0,0,
-	 6,1,4,0,0,0,0,2,3,
-	 0,0,0,0,2,3,4,0,1,
-	 7,0,0,1,9,0,0,6,0,
-	 0,3,7,0,0,2,0,0,0,
-	 4,0,8,0,0,0,2,5,0,
-	 0,5,0,0,8,6,3,0,9
+	/* 0,0,0 ,0,2,4 ,0,6,9,
+	 9,0,0 ,1,0,0 ,7,8,0,
+	 8,5,0 ,0,9,0 ,0,3,0,
+	 0,1,0 ,0,0,3 ,0,9,6,
+	 5,2,0 ,0,8,0 ,0,0,0,
+	 0,0,7 ,9,0,2 ,0,0,4,
+	 0,8,1 ,0,4,0 ,0,0,5,
+	 3,6,4 ,0,0,1 ,0,0,8,
+	 0,0,5 ,7,0,8 ,1,0,0*/
 
+
+	 //	3,9,6,5,8,4,1,7,2,
+	 //2,7,5,1,3,9,6,8,4,
+	 //1,8,4,7,2,6,5,3,9,
+	 //6,0,8,9,4,5,0,1,7,
+	 //9,0,1,0,6,7,8,0,5,
+	 //5,0,7,8,1,0,9,0,6,
+	 //7,1,0,6,9,8,4,0,3,
+	 //4,5,9,0,7,1,0,6,8,
+	 //8,6,0,4,5,0,7,9,1
+
+	/*0,7,2,9,0,0,0,1,0,
+	0,0,0,0,3,0,0,9,8,
+	8,0,5,4,7,0,0,0,0,
+	6,1,4,0,0,0,0,2,3,
+	0,0,0,0,2,3,4,0,1,
+	7,0,0,1,9,0,0,6,0,
+	0,3,7,0,0,2,0,0,0,
+	4,0,8,0,0,0,2,5,0,
+	0,5,0,0,8,6,3,0,9*/
 
 
 
@@ -451,6 +661,7 @@ int main()
 	mSudo.printSelf();
 	mSudo.solve();
 	//mSudo.isSolved();
+	while (true);
 	return 0;
 }
 
